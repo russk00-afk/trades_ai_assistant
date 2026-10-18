@@ -23,14 +23,14 @@ def safe(value):
     return escape(str(value))
 
 
-def main():
+def main(job_number=None):
     jobs = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
 
     print("\n=== SELECT JOB FOR PDF ===")
     for i, job in enumerate(jobs, 1):
         print(f"{i}. {job['customer']}")
 
-    choice = input("Enter job number: ").strip()
+    choice = str(job_number) if job_number is not None else input("Enter job number: ").strip()
     if not choice.isdigit() or not 1 <= int(choice) <= len(jobs):
         print("Invalid job number.")
         return
