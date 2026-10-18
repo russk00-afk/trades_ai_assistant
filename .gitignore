@@ -1,0 +1,5 @@
+__pycache__/
+data/
+drafts/
+app_backup.py
+*.pdf
