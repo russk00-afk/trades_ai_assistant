@@ -2,7 +2,7 @@ import json
 from decimal import Decimal
 from pathlib import Path
 
-from flask import Flask, render_template_string
+from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 JOBS_FILE = Path("data/jobs.json")
@@ -56,11 +56,11 @@ li { margin-bottom: 8px; }
 <div class="container">
 <h1>Trades AI Assistant</h1>
 <p>Your jobs, quotes and paperwork in one place.</p>
-<h2>Saved Jobs</h2>
+<p><a href="/new-job">+ Add New Job</a></p><h2>Saved Jobs</h2>
 
 {% for item in jobs %}
 <div class="card">
-<div class="customer">{{ item.customer }}</div>
+<div class="customer">{{ item.customer }}</div><p><a href="/update-job/{{ loop.index }}">Update Job</a></p>
 <p>{{ item.description }}</p>
 <p class="status">Status: Draft</p>
 
@@ -112,6 +112,36 @@ approval before issuing an invoice.
 </html>
 """
 
+
+
+FORM_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Add New Job</title>
+<style>
+body { font-family: Arial; background: #f3f5f8; padding: 20px; }
+form { background: white; padding: 22px; border-radius: 12px; max-width: 550px; margin: auto; }
+input, textarea { width: 100%; box-sizing: border-box; padding: 12px; margin: 8px 0 20px; font-size: 16px; }
+button { background: #17365d; color: white; padding: 14px; border: 0; border-radius: 8px; font-size: 16px; }
+</style>
+</head>
+<body>
+<form method="post">
+<h1>Add New Job</h1>
+<label>Customer name</label>
+<input name="customer" required maxlength="150">
+<label>Job description</label>
+<textarea name="job" required maxlength="2000"></textarea>
+<label>Original quote (EUR)</label>
+<input name="original_quote" type="number" step="0.01" min="0" required>
+<button type="submit">Save Job</button>
+<p><a href="/">Back to jobs</a></p>
+</form>
+</body>
+</html>
+"""
 
 @app.route("/")
 def home():
@@ -166,6 +196,128 @@ def download_pdf(job_number):
 
     return send_file(pdf.resolve(), as_attachment=True,
                      download_name=pdf.name)
+
+
+@app.route("/new-job", methods=["GET", "POST"])
+def new_job():
+    if request.method == "POST":
+        customer = request.form.get("customer", "").strip()
+        description = request.form.get("job", "").strip()
+        try:
+            quote = Decimal(request.form.get("original_quote", ""))
+        except Exception:
+            return "Invalid quote", 400
+
+        if not customer or not description or not quote.is_finite() or quote < 0:
+            return "Invalid job details", 400
+
+        jobs = []
+        if JOBS_FILE.exists():
+            jobs = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
+
+        jobs.append({
+            "customer": customer,
+            "job": description,
+            "original_quote": str(quote.quantize(Decimal("0.01"))),
+            "notes": [],
+            "potential_extras": []
+        })
+
+        JOBS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        JOBS_FILE.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+        return redirect(url_for("home"))
+
+    return render_template_string(FORM_PAGE)
+
+
+UPDATE_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Update Job</title>
+<style>
+body { font-family: Arial; background: #f3f5f8; padding: 16px; }
+form { background: white; max-width: 550px; margin: auto;
+padding: 20px; border-radius: 12px; }
+input, textarea { width: 100%; box-sizing: border-box;
+padding: 12px; margin: 8px 0 20px; font-size: 16px; }
+button { background: #17365d; color: white; border: 0;
+padding: 14px; border-radius: 8px; font-size: 16px; }
+</style>
+</head>
+<body>
+<form method="post">
+<h1>Update Job</h1>
+<h2>{{ job.customer }}</h2>
+<p>{{ job.job }}</p>
+
+<label>New work note</label>
+<textarea name="note" placeholder="What happened on the job?"></textarea>
+
+<label>Extra work description</label>
+<textarea name="extra" placeholder="Describe additional work"></textarea>
+
+<label>Proposed extra charge (EUR)</label>
+<input name="price" type="number" min="0" step="0.01">
+
+<button type="submit">Save Update</button>
+<p><a href="/">Back to jobs</a></p>
+</form>
+</body>
+</html>
+"""
+
+@app.route("/update-job/<int:job_number>", methods=["GET", "POST"])
+def update_job(job_number):
+    from flask import abort
+
+    if not JOBS_FILE.exists():
+        abort(404)
+
+    jobs = json.loads(JOBS_FILE.read_text(encoding="utf-8"))
+
+    if job_number < 1 or job_number > len(jobs):
+        abort(404)
+
+    job = jobs[job_number - 1]
+
+    if request.method == "POST":
+        note = request.form.get("note", "").strip()
+        extra = request.form.get("extra", "").strip()
+        price_text = request.form.get("price", "").strip()
+
+        if not note and not extra and not price_text:
+            return "Enter a note or extra work", 400
+
+        if extra or price_text:
+            if not extra or not price_text:
+                return "Extra work requires a description and price", 400
+            try:
+                price = Decimal(price_text)
+            except Exception:
+                return "Invalid extra charge", 400
+
+            if not price.is_finite() or price < 0:
+                return "Invalid extra charge", 400
+
+            price = price.quantize(Decimal("0.01"))
+
+            job.setdefault("potential_extras", []).append({
+                "description": extra,
+                "proposed_price": str(price),
+                "approved": False
+            })
+
+        if note:
+            job.setdefault("notes", []).append(note)
+
+        JOBS_FILE.write_text(
+            json.dumps(jobs, indent=2), encoding="utf-8"
+        )
+        return redirect(url_for("home"))
+
+    return render_template_string(UPDATE_PAGE, job=job)
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
