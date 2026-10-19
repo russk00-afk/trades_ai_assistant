@@ -1,3 +1,4 @@
+from business_profile import profile_bp
 import json
 from decimal import Decimal
 from pathlib import Path
@@ -5,6 +6,7 @@ from pathlib import Path
 from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
+app.register_blueprint(profile_bp)
 JOBS_FILE = Path("data/jobs.json")
 
 
@@ -56,7 +58,8 @@ li { margin-bottom: 8px; }
 <div class="container">
 <h1>Trades AI Assistant</h1>
 <p>Your jobs, quotes and paperwork in one place.</p>
-<p><a href="/new-job">+ Add New Job</a></p><h2>Saved Jobs</h2>
+<p><a href="/new-job">+ Add New Job</a></p><p><a href="/business-profile">Business Profile</a></p>
+<h2>Saved Jobs</h2>
 
 {% for item in jobs %}
 <div class="card">

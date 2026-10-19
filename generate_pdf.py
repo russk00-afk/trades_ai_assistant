@@ -45,6 +45,41 @@ def main(job_number=None):
     doc = SimpleDocTemplate(str(filename), pagesize=A4)
     story = []
 
+    # BUSINESS PROFILE PDF HEADER
+    profile_file = Path("data/business_profile.json")
+    if profile_file.exists():
+        profile = json.loads(
+            profile_file.read_text(encoding="utf-8")
+        )
+
+        name = profile.get("business_name", "").strip()
+        if name:
+            story.append(
+                Paragraph(safe(name), styles["Heading1"])
+            )
+
+        for field in ("address", "email", "phone", "country", "tax_id"):
+            value = profile.get(field, "").strip()
+            if value:
+                label = {
+                    "address": "Address",
+                    "email": "Email",
+                    "phone": "Telephone",
+                    "country": "Country",
+                    "tax_id": "Tax ID"
+                }[field]
+
+                story.append(
+                    Paragraph(
+                        f"<b>{label}:</b> {safe(value)}",
+                        styles["Normal"]
+                    )
+                )
+
+        story.append(Spacer(1, 20))
+
+
+
     story.append(Paragraph("INVOICE DRAFT", styles["Title"]))
     story.append(Paragraph(
         "NOT APPROVED - NOT FOR SENDING", styles["Heading2"]
