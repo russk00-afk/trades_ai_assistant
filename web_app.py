@@ -79,6 +79,20 @@ li { margin-bottom: 8px; }
 {% endfor %}
 </ul>
 
+<h3>Detected Charges — Review Required</h3>
+<ul>
+{% for charge in item.detected_charges %}
+<li>
+EUR {{ charge.amount }} —
+{{ charge.type | replace('_', ' ') | title }}
+<br>
+<small>Not approved — check against the original quote.</small>
+</li>
+{% else %}
+<li>No detected charges awaiting review</li>
+{% endfor %}
+</ul>
+
 <h3>Potential Extras</h3>
 <ul>
 {% for extra in item.extras %}
@@ -168,6 +182,7 @@ def home():
             "description": job["job"],
             "quote": money(quote),
             "notes": job.get("notes", []),
+            "detected_charges": job.get("detected_charges", []),
             "extras": [
                 {
                     "description": e["description"],
@@ -313,7 +328,22 @@ def update_job(job_number):
             })
 
         if note:
-            job.setdefault("notes", []).append(note)
+            existing_notes = job.setdefault("notes", [])
+            if any(n.strip().casefold() == note.casefold() for n in existing_notes):
+                return "This work note has already been saved for this job.", 409
+            existing_notes.append(note)
+
+            # Detect possible charges without changing invoice totals.
+            from charge_detector import classify_charges, normalize_spoken_amounts
+            normalized_note = normalize_spoken_amounts(note)
+            detected = classify_charges(normalized_note)
+
+            if detected:
+                for item in detected:
+                    item["source_note"] = note
+                    item["reviewed"] = False
+
+                job.setdefault("detected_charges", []).extend(detected)
 
         JOBS_FILE.write_text(
             json.dumps(jobs, indent=2), encoding="utf-8"
