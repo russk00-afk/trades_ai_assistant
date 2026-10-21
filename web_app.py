@@ -7,6 +7,8 @@ from flask import Flask, render_template_string, request, redirect, url_for
 
 app = Flask(__name__)
 app.register_blueprint(profile_bp)
+from charge_review import charge_review_bp
+app.register_blueprint(charge_review_bp)
 JOBS_FILE = Path("data/jobs.json")
 
 
@@ -82,11 +84,18 @@ li { margin-bottom: 8px; }
 <h3>Detected Charges — Review Required</h3>
 <ul>
 {% for charge in item.detected_charges %}
+{% set charge_index = loop.index0 %}
 <li>
 EUR {{ charge.amount }} —
 {{ charge.type | replace('_', ' ') | title }}
 <br>
-<small>Not approved — check against the original quote.</small>
+<small>Status: {{ charge.get('status', 'pending') | title }}</small>
+{% if charge.get('status', 'pending') == 'pending' %}
+<form method="post" action="{{ url_for('charge_review.review_charge', job_number=item.job_number, charge_index=charge_index) }}">
+<button type="submit" name="decision" value="approved">Approve</button>
+<button type="submit" name="decision" value="rejected">Reject</button>
+</form>
+{% endif %}
 </li>
 {% else %}
 <li>No detected charges awaiting review</li>
@@ -169,7 +178,7 @@ def home():
         )
 
     jobs = []
-    for job in saved_jobs:
+    for job_number, job in enumerate(saved_jobs, start=1):
         quote = Decimal(job["original_quote"])
         extras = job.get("potential_extras", [])
         extras_total = sum(
@@ -177,7 +186,18 @@ def home():
             Decimal("0")
         )
 
+        approved_charges_total = sum(
+            (
+                Decimal(str(c["amount"]))
+                for c in job.get("detected_charges", [])
+                if c.get("status") == "approved"
+                and c.get("type") == "proposed_customer_charge"
+            ),
+            Decimal("0")
+        )
+
         jobs.append({
+            "job_number": job_number,
             "customer": job["customer"],
             "description": job["job"],
             "quote": money(quote),
@@ -191,7 +211,7 @@ def home():
                 for e in extras
             ],
             "extras_total": money(extras_total),
-            "total": money(quote + extras_total)
+            "total": money(quote + extras_total + approved_charges_total)
         })
 
     return render_template_string(PAGE, jobs=jobs)
