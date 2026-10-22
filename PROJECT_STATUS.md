@@ -39,3 +39,10 @@ PDF currently shows: EUR 1125
 2. Keep business expenses separate from customer charges.
 3. Fix
 
+
+## 22 October — Charges review dashboard
+- Tested new Charges to Review and Manually Added Extras headings.
+- Confirmed roofing job proposed total remains €1,475.
+- Heading changes committed and pushed to GitHub.
+- Approval workflows are not yet fully unified.
+- Next: unify customer charges review, then correct PDF totals.
