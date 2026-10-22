@@ -105,8 +105,17 @@ EUR {{ charge.amount }} —
 <h3>Potential Extras</h3>
 <ul>
 {% for extra in item.extras %}
-<li>{{ extra.description }}:
-EUR {{ extra.price }} — Approval required</li>
+{% set extra_index = loop.index0 %}
+<li>
+{{ extra.description }}: EUR {{ extra.price }}
+<br>Status: {{ extra.status | title }}
+{% if extra.status == 'pending' %}
+<form method="post" action="{{ url_for('charge_review.review_extra', job_number=item.job_number, extra_index=extra_index) }}">
+<button name="decision" value="approved">Approve</button>
+<button name="decision" value="rejected">Reject</button>
+</form>
+{% endif %}
+</li>
 {% else %}
 <li>No extras recorded</li>
 {% endfor %}
@@ -182,7 +191,7 @@ def home():
         quote = Decimal(job["original_quote"])
         extras = job.get("potential_extras", [])
         extras_total = sum(
-            (Decimal(e["proposed_price"]) for e in extras),
+            (Decimal(e["proposed_price"]) for e in extras if e.get("approved") is True),
             Decimal("0")
         )
 
@@ -206,7 +215,7 @@ def home():
             "extras": [
                 {
                     "description": e["description"],
-                    "price": money(e["proposed_price"])
+                    "price": money(e["proposed_price"]), "status": e.get("status", "approved" if e.get("approved") else "pending")
                 }
                 for e in extras
             ],
