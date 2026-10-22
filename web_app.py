@@ -81,7 +81,7 @@ li { margin-bottom: 8px; }
 {% endfor %}
 </ul>
 
-<h3>Detected Charges — Review Required</h3>
+<h3>Charges to Review</h3><p>Detected charges from work notes</p>
 <ul>
 {% for charge in item.detected_charges %}
 {% set charge_index = loop.index0 %}
@@ -102,7 +102,7 @@ EUR {{ charge.amount }} —
 {% endfor %}
 </ul>
 
-<h3>Potential Extras</h3>
+<h4>Manually Added Extras</h4>
 <ul>
 {% for extra in item.extras %}
 {% set extra_index = loop.index0 %}
