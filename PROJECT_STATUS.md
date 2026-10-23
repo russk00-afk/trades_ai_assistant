@@ -46,3 +46,15 @@ PDF currently shows: EUR 1125
 - Heading changes committed and pushed to GitHub.
 - Approval workflows are not yet fully unified.
 - Next: unify customer charges review, then correct PDF totals.
+
+## 23 October - Costs and customer billing
+- Combined manual and detected charges in the Charges to Review display.
+- Added separate cost_amount and customer_charge_amount fields for newly detected charges.
+- Added unconfirmed billing_decision field for new detections.
+- Tested a note with EUR 65 material cost and EUR 85 proposed customer charge.
+- Material costs do not automatically become customer charges.
+- Material markup is optional, not mandatory.
+- Next: build an interface to edit and approve billable materials, labour and other charges.
+- Then: generate customer invoice PDFs from approved billable items.
+- Later: add country-specific taxes and compliant invoice details.
+- Existing dashboard/PDF total discrepancy still needs fixing.
