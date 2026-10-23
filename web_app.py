@@ -81,43 +81,26 @@ li { margin-bottom: 8px; }
 {% endfor %}
 </ul>
 
-<h3>Charges to Review</h3><p>Detected charges from work notes</p>
+<h3>Charges to Review</h3>
 <ul>
-{% for charge in item.detected_charges %}
-{% set charge_index = loop.index0 %}
+{% for charge in item.review_items %}
 <li>
-EUR {{ charge.amount }} —
-{{ charge.type | replace('_', ' ') | title }}
-<br>
-<small>Status: {{ charge.get('status', 'pending') | title }}</small>
-{% if charge.get('status', 'pending') == 'pending' %}
-<form method="post" action="{{ url_for('charge_review.review_charge', job_number=item.job_number, charge_index=charge_index) }}">
+<strong>{{ charge.description }}</strong> — EUR {{ charge.amount }}
+<br>Source: {{ 'Work note' if charge.source == 'detected' else 'Manual entry' }}
+<br>Status: {{ charge.status | title }}
+{% if charge.status == 'pending' %}
+{% if charge.source == 'detected' %}
+<form method="post" action="{{ url_for('charge_review.review_charge', job_number=item.job_number, charge_index=charge.index) }}">
+{% else %}
+<form method="post" action="{{ url_for('charge_review.review_extra', job_number=item.job_number, extra_index=charge.index) }}">
+{% endif %}
 <button type="submit" name="decision" value="approved">Approve</button>
 <button type="submit" name="decision" value="rejected">Reject</button>
 </form>
 {% endif %}
 </li>
 {% else %}
-<li>No detected charges awaiting review</li>
-{% endfor %}
-</ul>
-
-<h4>Manually Added Extras</h4>
-<ul>
-{% for extra in item.extras %}
-{% set extra_index = loop.index0 %}
-<li>
-{{ extra.description }}: EUR {{ extra.price }}
-<br>Status: {{ extra.status | title }}
-{% if extra.status == 'pending' %}
-<form method="post" action="{{ url_for('charge_review.review_extra', job_number=item.job_number, extra_index=extra_index) }}">
-<button name="decision" value="approved">Approve</button>
-<button name="decision" value="rejected">Reject</button>
-</form>
-{% endif %}
-</li>
-{% else %}
-<li>No extras recorded</li>
+<li>No charges recorded</li>
 {% endfor %}
 </ul>
 
@@ -211,6 +194,17 @@ def home():
             "description": job["job"],
             "quote": money(quote),
             "notes": job.get("notes", []),
+            "review_items": (
+                [
+                    {"source": "detected", "index": i, "amount": str(c.get("amount", "0")), "description": c.get("type", "Detected charge").replace("_", " ").title(), "status": c.get("status", "pending")}
+                    for i, c in enumerate(job.get("detected_charges", []))
+                ]
+                +
+                [
+                    {"source": "manual", "index": i, "amount": str(e.get("proposed_price", "0")), "description": e.get("description", "Manual charge"), "status": e.get("status", "approved" if e.get("approved") else "pending")}
+                    for i, e in enumerate(job.get("potential_extras", []))
+                ]
+            ),
             "detected_charges": job.get("detected_charges", []),
             "extras": [
                 {
@@ -370,6 +364,9 @@ def update_job(job_number):
             if detected:
                 for item in detected:
                     item["source_note"] = note
+                    item["cost_amount"] = item["amount"] if item.get("type") == "material_or_job_cost" else None
+                    item["customer_charge_amount"] = item["amount"] if item.get("type") == "proposed_customer_charge" else None
+                    item["billing_decision"] = "unconfirmed"
                     item["reviewed"] = False
 
                 job.setdefault("detected_charges", []).extend(detected)
